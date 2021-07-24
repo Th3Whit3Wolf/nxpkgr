@@ -21,8 +21,9 @@ zerocopy = "0.5.0"
 nanoserde = "0.1.29"
 # TOML decode
 tomboy-toml-dom = "0.1.21"
-# Colorful fork of pico-args
-pico-args = { path = "./pico-args" }
+# CLI
+pico-args = "0.4.2"
+owo-colors = "2.0.0"
 
 # Log
 log = "0.4"
