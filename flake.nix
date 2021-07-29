@@ -1,168 +1,104 @@
 {
+
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    nixCargoIntegration = {
-      url = "github:yusdacra/nix-cargo-integration";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    flakeCompat = {
+    flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
     };
+    nixpkgs.url = "nixpkgs/release-21.05";
+    utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    naersk.url = "github:nix-community/naersk";
   };
-  outputs = inputs: inputs.nixCargoIntegration.lib.makeOutputs {
-    root = ./.;
-    # The build platform that will be used for anything build related.
-    # Available platforms are "naersk" and "crate2nix".
-    buildPlatform = "naersk";
-    # Which package outputs to rename to what.
-    # This renames both their package names and the generated output names.
-    # Applies to generated apps too.
-    renameOutputs = { };
-    # Default outputs to set.
-    defaultOutputs = {
-      # Set the `defaultPackage` output to the "example` package from `packages`.
-      # package = "example";
-      # Set the `defaultApp` output to the "example` app from `apps`.
-      # app = "example";
-    };
-    # Overrides provided here will apply to *every crate*,
-    # for *every system*. To selectively override per crate,
-    # one can use `common.cargoPkg.name` attribute. To selectively
-    # override per system one can use `common.system` attribute.
-    overrides =
-      let
-        lib = inputs.nixpkgs.lib;
-      in
-      {
-        # Mutate the systems to generate outputs for here.
-        systems = def: def;
-        # Override sources used by nixCargoIntegration in common.
-        # This can be used to provide sources that are only needed for
-        # specific systems or crates.
-        sources = common: prev: {
-          rustOverlay = inputs.rustOverlay;
-        };
-        # Override nixpkgs configuration in common. This can be used 
-        # to add overlays for specific systems or crates.
-        pkgs = common: prev: {
-          # overlays = prev.overlays ++ [ inputs.someInput.someOverlay ];
-        };
-        # Override for the root that will be used.
-        # Note that it may cause inconsistency if the changed root includes different
-        # dependencies in it's Cargo.lock.
-        root = common: prev: prev;
-        # Override crate overrides used by crate2nix build derivation.
-        crateOverrides = common: prevv: {
-          # test = prev: {
-          #   buildInputs = (prev.buildInputs or []) ++ [ common.pkgs.hello ];
-          #   TEST_ENV = "test";
-          # }
-        };
-        # Common attribute overrides.
-        common = prev: {
-          # Package set used can be overriden here; note that changing
-          # the package set here will not change the already set
-          # runtimeLibs, buildInputs and nativeBuildInputs.
-          pkgs = prev.pkgs;
-          # Packages put here will have their libraries exported in
-          # $LD_LIBRARY_PATH environment variable.
-          runtimeLibs = prev.runtimeLibs ++ [ ];
-          # Packages put here will be used as build inputs for build
-          # derivation and packages for development shell. For development
-          # shell, they will be exported to $LIBRARY_PATH and $PKG_CONFIG_PATH.
-          buildInputs = prev.buildInputs ++ [ ];
-          # Packages put here will be used as native build inputs
-          # for build derivation and packages for development shell.
-          nativeBuildInputs = prev.nativeBuildInputs ++ [ ];
-          # Key-value pairs put here will be exported as environment
-          # variables in build and development shell.
-          env = prev.env // {
-            # PROTOC_INCLUDE = "${prev.pkgs.protobuf}/include";
+  outputs = { self, utils, rust-overlay, nixpkgs, naersk, flake-compat, ... }:
+  utils.lib.eachDefaultSystem (system: let
+      overlays = [ 
+        rust-overlay.overlay
+        (self: super: 
+        let
+          rust-stable = pkgs.rust-bin.stable.latest.default.override {
+            extensions =
+              [ "cargo" "clippy" "rust-docs" "rust-src" "rust-std" "rustc" "rustfmt" ];
           };
+        in
+        {
+          rustc = rust-stable;
+          cargo = rust-stable;
+          clippy = rust-stable;
+          rustfmt = rust-stable;
+        }) 
+      ];
+      pkgs = import nixpkgs {
+          inherit system overlays;
         };
-        # Development shell overrides.
-        shell = common: prev: {
-          # Packages to be put in $PATH.
-          packages = prev.packages ++ (with common.pkgs; [
-            openssl
-            pkgconfig
-            exa
-            fd
-            rust-bin.stable.latest.minimal
-            dbus 
-            cargo-whatfeatures
-            rust-analyzer
-            jq
-            hyperfine
-          ]);
-          # Commands that will be shown in the `menu`. These also get added
-          # to packages.
-          commands = 
-            let
-Update_RA_PATH = ''
-VS_SET=$(cat $DEVSHELL_ROOT/.vscode/settings.json | jq '. "rust-analyzer.server.path"')
-RA_PATH=$(echo ${common.pkgs.rust-analyzer})
-
-if [[ "$VS_SET" != "$RA_PATH" ]]; then
-    echo "Rust Analyzer Server Path is out-dated."
-    echo "Please fix at $DEVSHELL_ROOT/.vscode/settings.json"
-    echo "Correct path is ${common.pkgs.rust-analyzer}"
-fi'';
-
-            in
-          prev.commands ++ [
-            {
-              category = "Rust";
-              name = "RAP";
-              help = "Get rust analyzer path:";
-              command = "${Update_RA_PATH}";
-            }
-          ];
-          # Environment variables to be exported.
-          env = prev.env ++ [
-            { name = "RUST_SRC_PATH"; eval = "${common.pkgs.rust-bin.stable.latest.rust-src}/lib/rustlib/src/rust/library"; }
-          ];
-        };
-        # naersk build derivation overrides.
-        /*
-          build = common: prev: {
-          buildInputs = prev.buildInputs ++ [ ];
-          nativeBuildInputs = prev.nativeBuildInputs ++ [ ];
-          # Overrides for dependency build step.
-          override = prevv: (prev.override prevv) // { };
-          # Overrides for main crate build step.
-          overrideMain = prevv: (prev.overrideMain prevv) // {
-          # Build specific env variables can be specified here like so.
-          # GIT_LFS_CHECK = false;
-          };
-          # Arguments to be passed to cargo while building.
-          cargoBuildOptions = def: ((prev.cargoBuildOptions or (d: d)) def) ++ [ ];
-          # Arguments to be passed to cargo while testing.
-          cargoTestOptions = def: ((prev.cargoTestOptions or (d: d)) def) ++ [ ];
-          };
+      /*
+      naersk-lib = (naersk.lib."${system}".override {
+          cargo = rust-stable;
+          rustc = rust-stable;
+        });
         */
-        # crate2nix build derivation overrides.
-        /*
-          build = common: prev: {
-          # Set features to enable.
-          rootFeatures =
-          prev.rootFeatures
-          # ++ [ "some-feature" ]
-          ;
-          # Whether to build with release profile or not.
-          release = prev.release;
-          # Whether to run (all) tests or not.
-          runTests = prev.runTests;
-          };
-        */
-        # Override main build derivation of naersk / crate2nix.
-        mainBuild = common: prev: {
-          buildInputs = (prev.buildInputs or [ ]) ++ [ ];
-          # You can add environment variables like so:
-          # TEST_ENV = "test";
-        };
+    in rec {
+      # `nix build`
+      packages.vscodeExtensionSettings = naersk.buildPackage {
+        pname = "vscodeExtensionSettings";
+        root = ./.;
       };
-  };
+      defaultPackage = packages.vscodeExtensionSettings;
+
+      # `nix run`
+      apps.vscodeExtensionSettings = utils.lib.mkApp {
+        drv = packages.vscodeExtensionSettings;
+      };
+      defaultApp = apps.vscodeExtensionSettings;
+
+      # `nix develop`
+      extensions = (with pkgs.vscode-extensions; [
+        bbenoist.Nix
+        matklad.rust-analyzer
+        tamasfe.even-better-toml
+        pkief.material-icon-theme
+      ]) ++ pkgs.vscode-utils.extensionsFromVscodeMarketplace [
+    {
+      name = "spacemacs";
+      publisher = "cometeer";
+      version = "1.1.1";
+      sha256 = "da54d2a40b72bb814b2e4af6b03eff6b3982162ae6f4492e6ceccad8f70cc7d3";
+    }
+    {
+      name = "search-crates-io";
+      publisher = "belfz";
+      version = "1.2.1";
+      sha256 = "2b61f83871fabe042f86170e15d3f7443d1f3e0840c716e0babbfe37cda914db";
+    }
+  ];
+      vscodium-with-extensions = pkgs.vscode-with-extensions.override {
+        vscode = pkgs.vscodium;
+	vscodeExtensions = extensions;
+      };
+  
+      devShell = pkgs.mkShell {
+        nativeBuildInputs =  with pkgs; [
+          rustc
+          cargo
+          clippy
+          rustfmt
+          rust-analyzer
+          gcc
+          gtk3
+          pkg-config
+          cargo-whatfeatures
+          gcc
+	] ++ [
+	  vscodium-with-extensions  
+        ];
+
+	shellHook = ''
+	  alias code="${vscodium-with-extensions}/bin/codium"
+	'';
+        
+        RA_PATH = "${pkgs.rust-analyzer}/bin/rust-analyzer";
+        RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+        LIBCLANG_PATH = "${pkgs.llvmPackages.libclang}/lib";
+      };
+    });
 }
