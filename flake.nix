@@ -24,8 +24,6 @@
         {
           rustc = rust-stable;
           cargo = rust-stable;
-          clippy = rust-stable;
-          rustfmt = rust-stable;
         }) 
       ];
       pkgs = import nixpkgs {

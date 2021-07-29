@@ -1,40 +1,22 @@
 [package]
-authors = ["David Karrick <the.white.wolf.is.1337@gmail.com>"]
-edition = "2018"
 name = "nxpkgr"
 version = "0.1.0"
-license = "MIT"
-description = "A NixOS installer program"
+authors = ["Th3Whit3Wolf <the.white.wolf.is.1337@gmail.com>"]
+edition = "2018"
+description = "A nix source generator"
 readme = "README.md"
 homepage = "https://github.com/Th3Whit3Wolf/nixosInstaller"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# Async Runtime
 smol = "1.2.5"
-# HTTP
-surf = "2.2.0"
-# Database
-sled = "0.34.6"
-byteorder = "1.4.3"
-zerocopy = "0.5.0"
-# JSON
-nanoserde = "0.1.29"
-# TOML decode
-tomboy-toml-dom = "0.1.21"
-# CLI
-pico-args = "0.4.2"
-owo-colors = "2.0.0"
-
-# Log
-log = "0.4"
-pretty_env_logger = "0.4.0"
-
-# Errors
-eyre = "0.6.5"
-color-eyre = "0.5"
-thiserror = "1.0.26"
-
-# displaydoc = "0.2"
-coarsetime = "0.1.19"
-fancy-regex = "0.7.0"
-
+async-channel = "1.6.1"
+surf = { version = "2.2.0", default-features = false, features = ["h1-client-rustls"] }
+anyhow = "1.0.42"
+toml = "0.5.8"
+serde = "1.0.126"
+serde_derive = "1.0.126"
+serde_json = "1.0.64"
+tempfile = "3.2.0"
+ring = "0.16.20"
+data-encoding = "2.3.2"
