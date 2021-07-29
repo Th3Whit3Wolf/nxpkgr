@@ -1,25 +1,5 @@
-[SETTINGS]
-# github token
-# generate overlays
-# generate pkg.nix
+["cometeer.spacemacs"]
+src = "vsmarketplace"
 
-[manix]
-github = "mlvzk/manix"
-# Optionally inclued
-# * branch
-# * tag
-# * commit
-# * release
-# * archive
-# * extract
-# 
-# pkgSet
-
-[ritwickdey.LiverServer]
-vsmarketplace = "ritwickdey.LiverServer"
-# Optionally include 
-# version
-
-[vimPlugins]
-[vimPlugins.nvim-compe]
-github = "hrsh7th/nvim-compe"
+["roscop.activefileinstatusbar"]
+src = "vsmarketplace"
