@@ -1,11 +1,17 @@
 use serde_derive::{Deserialize, Serialize};
 
 use anyhow::{anyhow, Result};
-use surf::http::mime::JSON;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, REFERER, USER_AGENT},
+};
+use tokio::{
+  task,
+  runtime::Handle
+};
 
 use crate::{
-  package::{NixPackage, PackageKind},
-  sources::get_hash
+    package::{NixPackage, PackageKind},
+    sources::get_hash,
 };
 
 const EXT_QUERY_ADDRESS: &str =
@@ -72,7 +78,7 @@ pub struct VSMarketPlaceQueryResultResponse {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceQueryResults {
     pub extensions: Vec<VSMarketPlaceExtension>,
     pub pagingToken: Option<String>,
@@ -80,7 +86,7 @@ pub struct VSMarketPlaceQueryResults {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtension {
     pub publisher: VSMarketPlaceExtensionPublisher,
     pub extensionId: String,
@@ -97,7 +103,7 @@ pub struct VSMarketPlaceExtension {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionPublisher {
     pub publisherId: String,
     pub publisherName: String,
@@ -106,7 +112,7 @@ pub struct VSMarketPlaceExtensionPublisher {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionVersion {
     pub version: String,
     pub flags: String,
@@ -118,131 +124,117 @@ pub struct VSMarketPlaceExtensionVersion {
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionVersionFile {
     pub assetType: String,
     pub source: String,
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionVersionProperty {
     pub key: String,
     pub value: String,
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionStatistic {
     pub statisticName: String,
     pub value: f64,
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceQueryResultMetaData {
     pub metadataType: String,
     pub metadataItems: Vec<VSMarketPlaceQueryResultMetaDataItem>,
 }
 
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceQueryResultMetaDataItem {
     pub name: String,
     pub count: u64,
 }
 
 impl VSMarketPlaceQueryResultResponse {
-  #[allow(dead_code)]
+    #[allow(dead_code)]
     pub async fn new(extension: &str) -> Result<Self> {
-        smol::block_on(async {
-            let data = Payload::new(&extension);
-            let mut response = surf::post(EXT_QUERY_ADDRESS)
-                .header("Accept", "application/json;api-version=6.1-preview.1")
-                .header("Referer", "")
-                .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.51.0 Chrome/83.0.4103.122 Electron/9.3.3 Safari/537.36")
-                .header("X-Market-Client-Id", "VSCode 1.51.0")
-                .content_type(JSON)
-                .body(serde_json::to_string(&data)?)
-                .send()
-                .await.unwrap();
+        let data = Payload::new(extension);
 
-            if response.status() == 200 {
-                let body: String = response.body_string().await.unwrap();
-                let bdy = serde_json::from_str::<VSMarketPlaceQueryResultResponse>(&body).unwrap();
-                Ok(bdy)
-            } else {
-                Err(anyhow!(
-                    "Status: {}\nFailed to get version or extension is does not exist",
-                    response.status()
-                ))
-            }
-        })
+        let mut headers = HeaderMap::new();
+
+        // Declare headers
+        headers.insert(
+            ACCEPT,
+            HeaderValue::from_static("application/json;api-version=6.1-preview.1"),
+        );
+        headers.insert(REFERER, HeaderValue::from_static(""));
+        headers.insert(USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.51.0 Chrome/83.0.4103.122 Electron/9.3.3 Safari/537.36"));
+        headers.insert(
+            HeaderName::from_static("x-market-client-id"),
+            HeaderValue::from_static("VSCode 1.51.0"),
+        );
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        let response: VSMarketPlaceQueryResultResponse = reqwest::Client::new()
+            .post(EXT_QUERY_ADDRESS)
+            .headers(headers)
+            .json(&data)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        Ok(response)
     }
 }
 
 impl VSMarketPlaceExtension {
-  pub async fn new(extension: &str) -> Result<Self> {
-    smol::block_on(async {
-      let data = Payload::new(&extension);
-      let mut response = surf::post(EXT_QUERY_ADDRESS)
-        .header("Accept", "application/json;api-version=6.1-preview.1")
-        .header("Referer", "")
-        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.51.0 Chrome/83.0.4103.122 Electron/9.3.3 Safari/537.36")
-        .header("X-Market-Client-Id", "VSCode 1.51.0")
-        .content_type(JSON)
-        .body(serde_json::to_string(&data)?)
-        .send()
-        .await.expect("Error sending data");
+    pub async fn new(extension: &str) -> Result<Self> {
+        let query: VSMarketPlaceQueryResultResponse =
+            VSMarketPlaceQueryResultResponse::new(extension).await?;
 
-      if response.status() == 200 {
-        let response_body: String = response.body_string().await.unwrap();
-        let response_json =
-            serde_json::from_str::<VSMarketPlaceQueryResultResponse>(&response_body).unwrap();
-        if !response_json.results.is_empty()
-            && !response_json.results[0].extensions.is_empty()
-        {
-            Ok(response_json.results[0].extensions[0].clone())
+        if !query.results.is_empty() && !query.results[0].extensions.is_empty() {
+            Ok(query.results[0].extensions[0].clone())
         } else {
             Err(anyhow!("No results in VS Marektplace for extension"))
         }
-      } else {
-        Err(anyhow!(
-            "Status: {}\nFailed to get version or extension is does not exist",
-            response.status()
-        ))
-      }
-    })
-  }
+    }
 }
 
+
 impl From<VSMarketPlaceExtension> for NixPackage {
-  fn from(ext: VSMarketPlaceExtension) -> Self {
-    let publisher: String = ext.publisher.publisherName.to_string();
-    let extension_name: String = ext.extensionName.to_string();
-    let version: String = ext.versions[0].version.clone();
+    fn from(ext: VSMarketPlaceExtension) -> Self {
+        let publisher: String = ext.publisher.publisherName.to_string();
+        let extension_name: String = ext.extensionName.to_string();
+        let version: String = ext.versions[0].version.clone();
+        let src = format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/${publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version);
 
-    let mut vsix_url: Box<String> = Box::new(String::from(""));
+        let src_clone = &src.to_string();
+        let sha256: String = task::block_in_place(move || {
+          Handle::current().block_on(async move {
+              // do something async
+              get_hash(src_clone)
+              .await
+              .expect("Error: unable to get hash of vsix")
 
-    for file_info in ext.versions[0].files.clone() {
-      if file_info.assetType == "Microsoft.VisualStudio.Services.VSIXPackage" {
-        *vsix_url = file_info.source;
-      }
+          })
+      });
+     
+        NixPackage {
+            kind: PackageKind::VscodeExtension {
+                publisher: publisher.to_string(),
+                extension_name: extension_name.to_string(),
+            },
+            name: format!("{}.{}", &publisher, &extension_name),
+            pname: extension_name,
+            src,
+            version,
+            sha256,
+        }
     }
-    let sha256 = get_hash(&ext.versions[0].files[6].source).unwrap();
-
-    NixPackage {
-      kind: PackageKind::VscodeExtension{
-        publisher: publisher.to_string(), 
-        extension_name: extension_name .to_string()
-      },
-      name: format!("{}.{}", &publisher, &extension_name),
-      pname: extension_name.to_string(),
-      src: format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/${publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version),
-      version,
-      sha256
-    }
-  }
 }
 
 /*
@@ -259,10 +251,10 @@ mod tests {
 
     use super::*;
     use serde_json::json;
-    #[test]
-    fn test_vscode() {
-        smol::block_on(async {
-            let expected: VSMarketPlaceExtension = serde_json::from_value(json!({
+
+    #[tokio::test]
+    async fn test_vscode() {
+        let expected: VSMarketPlaceExtension = serde_json::from_value(json!({
           "publisher": {
             "publisherId": "676a77c3-4b25-4793-af44-32acc176c330",
             "publisherName": "cometeer",
@@ -391,13 +383,19 @@ mod tests {
           "deploymentType": 0
   })).unwrap();
 
-            let pre_actual = VSMarketPlaceQueryResultResponse::new("cometeer.spacemacs")
-                .await
-                .unwrap();
-
-            let actual = pre_actual.results[0].extensions[0].clone();
-
-            assert_eq!(actual.extensionId, expected.extensionId)
-        });
+        let actual: VSMarketPlaceExtension = VSMarketPlaceExtension::new("cometeer.spacemacs")
+            .await
+            .unwrap();
+        assert_eq!(actual.publisher, expected.publisher);
+        assert_eq!(actual.extensionId, expected.extensionId);
+        assert_eq!(actual.extensionName, expected.extensionName);
+        assert_eq!(actual.displayName, expected.displayName);
+        assert_eq!(actual.flags, expected.flags);
+        assert_eq!(actual.lastUpdated, expected.lastUpdated);
+        assert_eq!(actual.publishedDate, expected.publishedDate);
+        assert_eq!(actual.releaseDate, expected.releaseDate);
+        assert_eq!(actual.shortDescription, expected.shortDescription);
+        assert_eq!(actual.versions, expected.versions);
+        assert_eq!(actual.deploymentType, expected.deploymentType);
     }
 }

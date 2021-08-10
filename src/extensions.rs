@@ -1,13 +1,11 @@
 use crate::{
-    package::{Package, NixPackage, Sources},
+    package::{NixPackage, Package, Sources},
     sources::vscodemarketplace::VSMarketPlaceExtension,
 };
 
 use anyhow::{anyhow, Context, Result};
 
-use std::{
-    fs
-};
+use std::fs;
 //use std::io::{BufReader, Read, Write};
 
 const PATH_TO_EXAMPLE: &str = "./data/example_config.toml";
