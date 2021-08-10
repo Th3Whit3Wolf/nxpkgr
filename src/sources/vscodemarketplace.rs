@@ -1,13 +1,10 @@
 use serde_derive::{Deserialize, Serialize};
 
 use anyhow::{anyhow, Result};
-use reqwest::{
-    header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, REFERER, USER_AGENT},
+use reqwest::header::{
+    HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, REFERER, USER_AGENT,
 };
-use tokio::{
-  task,
-  runtime::Handle
-};
+use tokio::{runtime::Handle, task};
 
 use crate::{
     package::{NixPackage, PackageKind},
@@ -204,25 +201,23 @@ impl VSMarketPlaceExtension {
     }
 }
 
-
 impl From<VSMarketPlaceExtension> for NixPackage {
     fn from(ext: VSMarketPlaceExtension) -> Self {
         let publisher: String = ext.publisher.publisherName.to_string();
         let extension_name: String = ext.extensionName.to_string();
         let version: String = ext.versions[0].version.clone();
         let src = format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/${publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version);
-
         let src_clone = &src.to_string();
+        
         let sha256: String = task::block_in_place(move || {
-          Handle::current().block_on(async move {
-              // do something async
-              get_hash(src_clone)
-              .await
-              .expect("Error: unable to get hash of vsix")
+            Handle::current().block_on(async move {
+                // do something async
+                get_hash(src_clone)
+                    .await
+                    .expect("Error: unable to get hash of vsix")
+            })
+        });
 
-          })
-      });
-     
         NixPackage {
             kind: PackageKind::VscodeExtension {
                 publisher: publisher.to_string(),
