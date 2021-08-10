@@ -1,7 +1,6 @@
+mod extensions;
 mod package;
 mod sources;
-//mod openvsx;
-mod extensions;
 
 use anyhow::Result;
 use package::NixPackage;

@@ -3,3 +3,6 @@ src = "vsmarketplace"
 
 ["roscop.activefileinstatusbar"]
 src = "vsmarketplace"
+
+["Dart-Code.dart-code"]
+src = "openvsx"

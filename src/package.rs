@@ -41,6 +41,10 @@ pub enum PackageKind {
         publisher: String,
         extension_name: String,
     },
+    OpenVSX {
+        publisher: String,
+        extension_name: String,
+    },
     Other,
 }
 
