@@ -2,6 +2,7 @@ pub mod openvsx;
 pub mod vscodemarketplace;
 
 use anyhow::Result;
+use pulldown_cmark::{Event, Options, Parser, Tag};
 use tempfile::Builder;
 
 use std::{fs::File, io::copy, process::Command};
@@ -46,4 +47,27 @@ pub async fn get_hash(url: &str) -> Result<String> {
     tmp_dir.close()?;
 
     Ok(hash)
+}
+
+pub async fn get_long_description(url: &str) -> Result<String> {
+    let md = reqwest::get(url).await?.text().await?;
+    let mut in_first_header = false;
+    let mut long_description: Box<String> = Box::new(String::from(""));
+    Parser::new_ext(&md, Options::all()).map(|event| match event {
+        Event::Start(tag) => {
+            if let Tag::Heading(num) = tag {
+                if num < 4 {
+                    in_first_header = true
+                }
+            }
+        }
+        Event::Text(text) => {
+            if in_first_header && *long_description != String::from("") {
+                *long_description = text.into_string();
+            }
+        }
+        _ => (),
+    });
+
+    Ok(*long_description)
 }

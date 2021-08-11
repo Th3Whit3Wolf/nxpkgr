@@ -17,5 +17,7 @@ serde = "1.0.126"
 serde_derive = "1.0.126"
 serde_json = "1.0.64"
 tempfile = "3.2.0"
-ring = "0.16.20"
-data-encoding = "2.3.2"
+pulldown-cmark = "0.8.0"
+roxmltree = "0.14.1"
+octocrab = { version = "0.11.0", default-features = false, features = [ "rustls" ]} 
+#derive_more = {version = "0.99.16", default-features = false, features = ["display"]}

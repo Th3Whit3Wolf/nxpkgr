@@ -1,4 +1,5 @@
 mod extensions;
+mod license;
 mod package;
 mod sources;
 

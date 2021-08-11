@@ -7,8 +7,9 @@ use reqwest::header::{
 use tokio::{runtime::Handle, task};
 
 use crate::{
-    package::{NixPackage, PackageKind},
-    sources::get_hash,
+    license::NixLicense,
+    package::{NixPackage, NixPackageMeta, PackageKind},
+    sources::{get_hash, get_long_description},
 };
 
 const EXT_QUERY_ADDRESS: &str =
@@ -123,8 +124,28 @@ pub struct VSMarketPlaceExtensionVersion {
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionVersionFile {
-    pub assetType: String,
+    pub assetType: AssetTypeMicrosoftVisualStudio,
     pub source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+pub enum AssetTypeMicrosoftVisualStudio {
+    #[serde(rename = "Microsoft.VisualStudio.Code.Manifest")]
+    CodeManifest,
+    #[serde(rename = "Microsoft.VisualStudio.Services.Content.Changelog")]
+    ServicesContentChangelog,
+    #[serde(rename = "Microsoft.VisualStudio.Services.Content.Details")]
+    ServicesContentDetails,
+    #[serde(rename = "Microsoft.VisualStudio.Services.Content.License")]
+    ServicesContentLicense,
+    #[serde(rename = "Microsoft.VisualStudio.Services.Icons.Default")]
+    ServicesIconsDefault,
+    #[serde(rename = "Microsoft.VisualStudio.Services.Icons.Small")]
+    ServicesIconsSmall,
+    #[serde(rename = "Microsoft.VisualStudio.Services.VsixManifest")]
+    ServicesVsixManifest,
+    #[serde(rename = "Microsoft.VisualStudio.Services.VSIXPackage")]
+    ServicesVSIXPackage,
 }
 
 #[allow(non_snake_case)]
@@ -201,14 +222,113 @@ impl VSMarketPlaceExtension {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ManifestInfo {
+    homepage: Option<String>,
+    github: Option<String>,
+    source: Option<String>,
+}
+
+async fn get_manifest_info(files: &Vec<VSMarketPlaceExtensionVersionFile>) -> Option<ManifestInfo> {
+    let mut manifest_vec = Vec::new();
+    let mut homepage_box = Box::new(String::from(""));
+    let mut github_box = Box::new(String::from(""));
+    let mut source_box = Box::new(String::from(""));
+
+    for f in files {
+        if f.assetType == AssetTypeMicrosoftVisualStudio::CodeManifest {
+            manifest_vec.push(
+                reqwest::get(&f.source)
+                    .await
+                    .expect("Error: unable to connect to url")
+                    .text()
+                    .await
+                    .expect("Error: unable to get response body"),
+            )
+        }
+    }
+
+    if !manifest_vec.is_empty() {
+        if let Ok(doc) = roxmltree::Document::parse(&manifest_vec[0]) {
+            for node in doc.descendants() {
+                if node.is_element() {
+                    if node.has_tag_name("Property") {
+                        if let Some(property_id) = node.attribute_node("Id") {
+                            match property_id.value() {
+                                "Microsoft.VisualStudio.Services.Links.Learn" => {
+                                    if let Some(property_value) = node.attribute_node("Value") {
+                                        *homepage_box = property_value.value().to_string()
+                                    }
+                                }
+                                "Microsoft.VisualStudio.Services.Links.GitHub" => {
+                                    if let Some(property_value) = node.attribute_node("Value") {
+                                        *github_box = property_value.value().to_string()
+                                    }
+                                }
+                                "Microsoft.VisualStudio.Services.Links.Source" => {
+                                    if let Some(property_value) = node.attribute_node("Value") {
+                                        *source_box = property_value.value().to_string()
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+            }
+
+            Some(ManifestInfo {
+                homepage: if *homepage_box != "" {
+                    Some(*homepage_box)
+                } else {
+                    None
+                },
+                github: if *github_box != "" {
+                    Some(*github_box)
+                } else {
+                    None
+                },
+                source: if *source_box != "" {
+                    Some(*source_box)
+                } else {
+                    None
+                },
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+async fn get_github_license(github_url: String) -> Option<&'static NixLicense> {
+    let github = github_url.trim_end_matches(".git");
+    let github = github.trim_start_matches("https://github.com/");
+    let split_github_url: Vec<&str> = github.split('/').collect();
+    let github_author = split_github_url[0];
+    let github_repo = split_github_url[1];
+    if let Some(lic) = octocrab::instance()
+        .repos(github_author, github_repo)
+        .license()
+        .await
+        .expect("Error: getting repo information")
+        .license
+    {
+        NixLicense::from_str(&lic.name)
+    } else {
+        None
+    }
+}
+
 impl From<VSMarketPlaceExtension> for NixPackage {
     fn from(ext: VSMarketPlaceExtension) -> Self {
         let publisher: String = ext.publisher.publisherName.to_string();
         let extension_name: String = ext.extensionName.to_string();
         let version: String = ext.versions[0].version.clone();
-        let src = format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/${publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version);
+        let src = format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/{publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version);
         let src_clone = &src.to_string();
-        
+
         let sha256: String = task::block_in_place(move || {
             Handle::current().block_on(async move {
                 // do something async
@@ -217,6 +337,81 @@ impl From<VSMarketPlaceExtension> for NixPackage {
                     .expect("Error: unable to get hash of vsix")
             })
         });
+
+        let description = if !&ext.shortDescription.is_empty() {
+            Some(ext.shortDescription.to_string())
+        } else {
+            None
+        };
+
+        let mut long_description_box = Box::new(String::from(""));
+        let mut changelog_box = Box::new(String::from(""));
+
+        for f in &ext.versions[0].files.clone() {
+            match f.assetType {
+                AssetTypeMicrosoftVisualStudio::ServicesContentChangelog => {
+                    *changelog_box = f.source.to_string();
+                }
+                AssetTypeMicrosoftVisualStudio::ServicesContentDetails => {
+                    *long_description_box = task::block_in_place(move || {
+                        Handle::current().block_on(async move {
+                            // do something async
+                            get_long_description(&f.source)
+                                .await
+                                .expect("Error: unable to get readme of extension")
+                        })
+                    });
+                }
+                _ => (),
+            }
+        }
+
+        let (license, homepage) = if let Some(manifest_info) = task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                // do something async
+                get_manifest_info(&ext.versions[0].files).await
+            })
+        }) {
+            let license = if let Some(github_url) = manifest_info.github {
+                if let Some(lic) = task::block_in_place(move || {
+                    Handle::current().block_on(async move {
+                        // do something async
+                        get_github_license(github_url).await
+                    })
+                }) {
+                    Some(vec![*lic])
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let homepage = manifest_info.homepage;
+
+            (license, homepage)
+        } else {
+            (None, None)
+        };
+
+        let long_description = if *long_description_box != "" {
+            Some(*long_description_box)
+        } else {
+            None
+        };
+
+        let changelog = if *changelog_box != "" {
+            Some(vec![*changelog_box])
+        } else {
+            None
+        };
+        let meta = NixPackageMeta {
+            description,
+            long_description,
+            homepage,
+            license,
+            changelog,
+            ..Default::default()
+        };
 
         NixPackage {
             kind: PackageKind::VscodeExtension {
@@ -228,18 +423,10 @@ impl From<VSMarketPlaceExtension> for NixPackage {
             src,
             version,
             sha256,
+            meta,
         }
     }
 }
-
-/*
-Extend
-description = ext.shortDescription;
-homepage = "https://marketplace.visualstudio.com/items?itemName={publisher}.{extension_name}";
-license = // Could be take from gihub repo with licenses; [ unlicense /* or */ mit ];
-
-
-*/
 
 #[cfg(test)]
 mod tests {
@@ -250,133 +437,133 @@ mod tests {
     #[tokio::test]
     async fn test_vscode() {
         let expected: VSMarketPlaceExtension = serde_json::from_value(json!({
-          "publisher": {
-            "publisherId": "676a77c3-4b25-4793-af44-32acc176c330",
-            "publisherName": "cometeer",
-            "displayName": "cometeer",
-            "flags": "verified"
-          },
-          "extensionId": "5377d680-e3f1-43bc-a2a8-0386b693b58b",
-          "extensionName": "spacemacs",
-          "displayName": "Spacemacs",
-          "flags": "validated, public",
-          "lastUpdated": "2017-10-05T10:10:51.8Z",
-          "publishedDate": "2017-06-06T15:36:54.117Z",
-          "releaseDate": "2017-06-06T15:36:54.117Z",
-          "shortDescription": "Spacemacs themes for Visual Studio Code",
-          "versions": [
-            {
-              "version": "1.1.1",
-              "flags": "validated",
-              "lastUpdated": "2017-10-05T10:10:52.033Z",
-              "files": [
-                {
-                  "assetType": "Microsoft.VisualStudio.Code.Manifest",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Code.Manifest"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.Content.Changelog",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Content.Changelog"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.Content.Details",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Content.Details"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.Icons.Default",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Icons.Default"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.Icons.Small",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Icons.Small"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.VsixManifest",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.VsixManifest"
-                },
-                {
-                  "assetType": "Microsoft.VisualStudio.Services.VSIXPackage",
-                  "source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.VSIXPackage"
-                }
-              ],
-              "properties": [
-                {
-                  "key": "Microsoft.VisualStudio.Services.Links.Repository",
-                  "value": "git+https://github.com/cometeer/spacemacs-vscode.git"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Services.Links.Getstarted",
-                  "value": "git+https://github.com/cometeer/spacemacs-vscode.git"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Services.Links.Support",
-                  "value": "https://github.com/cometeer/spacemacs-vscode/issues"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Services.Links.Learn",
-                  "value": "https://github.com/cometeer/spacemacs-vscode#readme"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Services.Links.Source",
-                  "value": "git+https://github.com/cometeer/spacemacs-vscode.git"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Code.Engine",
-                  "value": "^1.12.0"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown",
-                  "value": "true"
-                },
-                {
-                  "key": "Microsoft.VisualStudio.Code.ExtensionDependencies",
-                  "value": ""
-                }
-              ],
-              "assetUri": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877",
-              "fallbackAssetUri": "https://cometeer.gallery.vsassets.io/_apis/public/gallery/publisher/cometeer/extension/spacemacs/1.1.1/assetbyname"
-            }
-          ],
-          "statistics": [
-            {
-              "statisticName": "install",
-              "value": 47541.0
-            },
-            {
-              "statisticName": "averagerating",
-              "value": 4.857142925262451
-            },
-            {
-              "statisticName": "ratingcount",
-              "value": 7.0
-            },
-            {
-              "statisticName": "trendingdaily",
-              "value": 0.002103713053539497
-            },
-            {
-              "statisticName": "trendingmonthly",
-              "value": 1.1254864836436311
-            },
-            {
-              "statisticName": "trendingweekly",
-              "value": 0.2208898706216472
-            },
-            {
-              "statisticName": "updateCount",
-              "value": 9334.0
-            },
-            {
-              "statisticName": "weightedRating",
-              "value": 4.590120457054699
-            },
-            {
-              "statisticName": "downloadCount",
-              "value": 66.0
-            }
-          ],
-          "deploymentType": 0
-  })).unwrap();
+					"publisher": {
+						"publisherId": "676a77c3-4b25-4793-af44-32acc176c330",
+						"publisherName": "cometeer",
+						"displayName": "cometeer",
+						"flags": "verified"
+					},
+					"extensionId": "5377d680-e3f1-43bc-a2a8-0386b693b58b",
+					"extensionName": "spacemacs",
+					"displayName": "Spacemacs",
+					"flags": "validated, public",
+					"lastUpdated": "2017-10-05T10:10:51.8Z",
+					"publishedDate": "2017-06-06T15:36:54.117Z",
+					"releaseDate": "2017-06-06T15:36:54.117Z",
+					"shortDescription": "Spacemacs themes for Visual Studio Code",
+					"versions": [
+						{
+							"version": "1.1.1",
+							"flags": "validated",
+							"lastUpdated": "2017-10-05T10:10:52.033Z",
+							"files": [
+								{
+									"assetType": "Microsoft.VisualStudio.Code.Manifest",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Code.Manifest"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.Content.Changelog",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Content.Changelog"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.Content.Details",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Content.Details"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.Icons.Default",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Icons.Default"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.Icons.Small",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.Icons.Small"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.VsixManifest",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.VsixManifest"
+								},
+								{
+									"assetType": "Microsoft.VisualStudio.Services.VSIXPackage",
+									"source": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877/Microsoft.VisualStudio.Services.VSIXPackage"
+								}
+							],
+							"properties": [
+								{
+									"key": "Microsoft.VisualStudio.Services.Links.Repository",
+									"value": "git+https://github.com/cometeer/spacemacs-vscode.git"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Services.Links.Getstarted",
+									"value": "git+https://github.com/cometeer/spacemacs-vscode.git"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Services.Links.Support",
+									"value": "https://github.com/cometeer/spacemacs-vscode/issues"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Services.Links.Learn",
+									"value": "https://github.com/cometeer/spacemacs-vscode#readme"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Services.Links.Source",
+									"value": "git+https://github.com/cometeer/spacemacs-vscode.git"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Code.Engine",
+									"value": "^1.12.0"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Services.GitHubFlavoredMarkdown",
+									"value": "true"
+								},
+								{
+									"key": "Microsoft.VisualStudio.Code.ExtensionDependencies",
+									"value": ""
+								}
+							],
+							"assetUri": "https://cometeer.gallerycdn.vsassets.io/extensions/cometeer/spacemacs/1.1.1/1507198251877",
+							"fallbackAssetUri": "https://cometeer.gallery.vsassets.io/_apis/public/gallery/publisher/cometeer/extension/spacemacs/1.1.1/assetbyname"
+						}
+					],
+					"statistics": [
+						{
+							"statisticName": "install",
+							"value": 47541.0
+						},
+						{
+							"statisticName": "averagerating",
+							"value": 4.857142925262451
+						},
+						{
+							"statisticName": "ratingcount",
+							"value": 7.0
+						},
+						{
+							"statisticName": "trendingdaily",
+							"value": 0.002103713053539497
+						},
+						{
+							"statisticName": "trendingmonthly",
+							"value": 1.1254864836436311
+						},
+						{
+							"statisticName": "trendingweekly",
+							"value": 0.2208898706216472
+						},
+						{
+							"statisticName": "updateCount",
+							"value": 9334.0
+						},
+						{
+							"statisticName": "weightedRating",
+							"value": 4.590120457054699
+						},
+						{
+							"statisticName": "downloadCount",
+							"value": 66.0
+						}
+					],
+					"deploymentType": 0
+	})).unwrap();
 
         let actual: VSMarketPlaceExtension = VSMarketPlaceExtension::new("cometeer.spacemacs")
             .await

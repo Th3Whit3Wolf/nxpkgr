@@ -6,12 +6,12 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::{
-    package::{NixPackage, PackageKind},
-    sources::get_hash,
+    license::NixLicense,
+    package::{NixPackage, NixPackageMeta, PackageKind},
+    sources::{get_hash, get_long_description},
 };
 
 use tokio::{runtime::Handle, task};
-
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
@@ -89,15 +89,56 @@ impl From<OpenVSXExtensionResponse> for NixPackage {
         let version: String = ext.version;
         let src = format!("https://open-vsx.org/api/{publisher}/{extName}/{version}/file/{publisher}.{extName}-{version}.vsix", publisher=&publisher, extName=&extension_name, version=&version);
         let src_clone = &src.to_string();
+        let readme = &ext.files.readme;
+
+        let long_description: String = task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                // do something async
+                get_long_description(readme)
+                    .await
+                    .expect("Error: unable to get readme of extension")
+            })
+        });
 
         let sha256: String = task::block_in_place(move || {
             Handle::current().block_on(async move {
                 // do something async
                 get_hash(src_clone)
                     .await
-                    .expect("Error: unable to get hash of vsix")
+                    .expect("Error: unable to get hash of extension's vsix")
             })
         });
+
+        let description = if !&ext.description.is_empty() {
+            Some(String::from(&ext.description))
+        } else {
+            None
+        };
+
+        let long_description = if !long_description.is_empty() {
+            Some(long_description)
+        } else {
+            None
+        };
+
+        let homepage = if !&ext.publishedBy.homepage.is_empty() {
+            Some(String::from(&ext.publishedBy.homepage))
+        } else {
+            None
+        };
+
+        let nix_license = NixLicense::from_str(&ext.license);
+
+        let license = nix_license.map(|lic| vec![*lic]);
+
+        let meta = NixPackageMeta {
+            description,
+            long_description,
+            homepage,
+            license,
+            changelog: Some(vec![ext.files.changelog]),
+            ..Default::default()
+        };
 
         NixPackage {
             kind: PackageKind::VscodeExtension {
@@ -109,6 +150,7 @@ impl From<OpenVSXExtensionResponse> for NixPackage {
             src,
             version,
             sha256,
+            meta,
         }
     }
 }
