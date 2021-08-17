@@ -1,5 +1,20 @@
 {
   "nodes": {
+    "devshell": {
+      "locked": {
+        "lastModified": 1625086391,
+        "narHash": "sha256-IpNPv1v8s4L3CoxhwcgZIitGpcrnNgnj09X7TA0QV3k=",
+        "owner": "numtide",
+        "repo": "devshell",
+        "rev": "4b5ac7cf7d9a1cc60b965bb51b59922f2210cbc7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "devshell",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -64,11 +79,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1628597053,
-        "narHash": "sha256-tf6Nwz8cR1pLe/v4vujJLLDIZsE69p8paQ9K2Tky1aY=",
+        "lastModified": 1629185335,
+        "narHash": "sha256-gGxl3Hep47koGptjFcSRDVcJ4DmjLptNFeoLv2ZhlqI=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b43522a1f506222501a3281041946d4dfa130a80",
+        "rev": "8c3b502c7cf4f364a9949f65ba22921693df2d19",
         "type": "github"
       },
       "original": {
@@ -94,6 +109,7 @@
     },
     "root": {
       "inputs": {
+        "devshell": "devshell",
         "flake-compat": "flake-compat",
         "naersk": "naersk",
         "nixpkgs": "nixpkgs_2",
@@ -107,11 +123,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1628561758,
-        "narHash": "sha256-+ASYECMaG/i4+JrsuRnld1Wqa2z68Em5OrhhQ1QeZWU=",
+        "lastModified": 1629166353,
+        "narHash": "sha256-Tjn5LKgUHDBfjp+MFMMZFo4rcP+rweyYFQg5mKHZD/8=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "69144a541cb4b27b37f248b4914290ac5e1b9184",
+        "rev": "abf8758f9fc2130adb7fd4ac1e8d5daf3a28cf13",
         "type": "github"
       },
       "original": {

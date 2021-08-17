@@ -1,41 +1,7 @@
 {
-    "cSpell.enabledLanguageIds": [
-        "asciidoc",
-        "c",
-        "cpp",
-        "csharp",
-        "css",
-        "git-commit",
-        "go",
-        "graphql",
-        "handlebars",
-        "haskell",
-        "html",
-        "jade",
-        "java",
-        "javascript",
-        "javascriptreact",
-        "json",
-        "jsonc",
-        "latex",
-        "less",
-        "markdown",
-        "php",
-        "plaintext",
-        "python",
-        "pug",
-        "restructuredtext",
-        "scala",
-        "scss",
-        "text",
-        "typescript",
-        "typescriptreact",
-        "yaml",
-        "yml"
-    ],
     "rust-analyzer.trace.extension": true,
     "rust-analyzer.trace.server": "messages",
-    "rust-analyzer.server.path": "/nix/store/j71g9wznyjm3rh07j222i1qky7kz6h0s-rust-analyzer-2021-05-17/bin/rust-analyzer",
+"rust-analyzer.server.path": "/nix/store/bps6q76sidxpaa17g2avy2bvlsf39cxb-rust-analyzer-2021-05-17/bin/rust-analyzer",
     "terminal.integrated.profiles.linux": {
         "bash": {
             "path": "bash"
@@ -48,4 +14,5 @@
         }
     },
     "terminal.integrated.defaultProfile.linux": "nix",
+    "editor.insertSpaces": false,
 }
