@@ -1,3 +1,4 @@
+pub mod github;
 pub mod openvsx;
 pub mod vscodemarketplace;
 
@@ -49,7 +50,7 @@ pub async fn get_hash(url: &str) -> Result<String> {
     Ok(hash)
 }
 
-pub async fn get_long_description(url: &str) -> Result<String> {
+pub async fn get_long_description(url: String) -> Result<String> {
     let md = reqwest::get(url).await?.text().await?;
     let mut in_first_header = false;
     let mut long_description: Box<String> = Box::new(String::from(""));

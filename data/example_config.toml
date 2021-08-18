@@ -1,8 +1,9 @@
-["cometeer.spacemacs"]
-src = "vsmarketplace"
+[github]
+eww = "elkowar/eww"
 
-["roscop.activefileinstatusbar"]
-src = "vsmarketplace"
+[openvsx]
+"Dart-Code.dart-code" = "Dart-Code.dart-code"
 
-["Dart-Code.dart-code"]
-src = "openvsx"
+[vsmarketplace]
+"roscop.activefileinstatusbar" = "roscop.activefileinstatusbar"
+"cometeer.spacemacs" = "cometeer.spacemacs"

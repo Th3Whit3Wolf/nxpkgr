@@ -5,19 +5,42 @@ authors = ["Th3Whit3Wolf <the.white.wolf.is.1337@gmail.com>"]
 edition = "2018"
 description = "A nix source generator"
 readme = "README.md"
-homepage = "https://github.com/Th3Whit3Wolf/nixosInstaller"
+homepage = "https://github.com/Th3Whit3Wolf/nxpkgr"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# Async runtime
 tokio = { version = "1", features = ["full"] }
+
+# Http Client
 reqwest = { version = "0.11.4", default-features = false, features = [ "rustls-tls", "json" ] }
 anyhow = "1.0.42"
+
+# To serialize/deserialize various languages
 toml = "0.5.8"
-serde = "1.0.126"
-serde_derive = "1.0.126"
+serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
-tempfile = "3.2.0"
 pulldown-cmark = "0.8.0"
 roxmltree = "0.14.1"
+
+# To download file to random temporary path
+tempfile = "3.2.0"
+
 octocrab = { version = "0.11.0", default-features = false, features = [ "rustls" ]} 
+
+# For Errors
+thiserror = "1.0.26"
+color-eyre = { version = "0.5.11", features = ["track-caller", "capture-spantrace", "issue-url"]}
+eyre = "0.6.1"
+tracing-subscriber = "0.2.5"
+tracing-error = "0.1.2"
+tracing = "0.1.13"
+
+rayon = "1.5.1"
+
+# Not sure if I will need this
 #derive_more = {version = "0.99.16", default-features = false, features = ["display"]}
+
+# Improving perf on debug builds
+[profile.dev.package.backtrace]
+opt-level = 3

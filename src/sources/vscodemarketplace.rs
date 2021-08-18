@@ -1,4 +1,4 @@
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use anyhow::{anyhow, Result};
 use reqwest::header::{
@@ -7,36 +7,35 @@ use reqwest::header::{
 use tokio::{runtime::Handle, task};
 
 use crate::{
-    license::NixLicense,
-    package::{NixPackage, NixPackageMeta, PackageKind},
+    nix::{NixLicense, NixPackage, NixPackageMeta},
     sources::{get_hash, get_long_description},
 };
 
 const EXT_QUERY_ADDRESS: &str =
     "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery";
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Payload {
     pub filters: Vec<PayloadCriteria>,
-    pub assetTypes: Vec<String>,
+    pub asset_types: Vec<String>,
     pub flags: u64,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PayloadCriteria {
     pub criteria: Vec<PayloadCriterion>,
-    pub pageNumber: u64,
-    pub pageSize: u64,
-    pub sortBy: u64,
-    pub sortOrder: u64,
+    pub page_number: u64,
+    pub page_size: u64,
+    pub sort_by: u64,
+    pub sort_order: u64,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PayloadCriterion {
-    pub filterType: u64,
+    pub filter_type: u64,
     pub value: String,
 }
 
@@ -46,85 +45,84 @@ impl Payload {
             filters: vec![PayloadCriteria {
                 criteria: vec![
                     PayloadCriterion {
-                        filterType: 8,
+                        filter_type: 8,
                         value: String::from("Microsoft.VisualStudio.Code"),
                     },
                     PayloadCriterion {
-                        filterType: 10,
+                        filter_type: 10,
                         value: unique_id.to_string(),
                     },
                     PayloadCriterion {
-                        filterType: 12,
+                        filter_type: 12,
                         value: String::from("4096"),
                     },
                 ],
-                pageNumber: 1,
-                pageSize: 2,
-                sortBy: 0,
-                sortOrder: 0,
+                page_number: 1,
+                page_size: 2,
+                sort_by: 0,
+                sort_order: 0,
             }],
-            assetTypes: Vec::with_capacity(1),
+            asset_types: Vec::with_capacity(1),
             flags: 946,
         }
     }
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VSMarketPlaceQueryResultResponse {
     pub results: Vec<VSMarketPlaceQueryResults>,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceQueryResults {
     pub extensions: Vec<VSMarketPlaceExtension>,
-    pub pagingToken: Option<String>,
-    pub resultMetadata: Vec<VSMarketPlaceQueryResultMetaData>,
+    pub paging_token: Option<String>,
+    pub result_metadata: Vec<VSMarketPlaceQueryResultMetaData>,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceExtension {
     pub publisher: VSMarketPlaceExtensionPublisher,
-    pub extensionId: String,
-    pub extensionName: String,
-    pub displayName: String,
+    pub extension_id: String,
+    pub extension_name: String,
+    pub display_name: String,
     pub flags: String,
-    pub lastUpdated: String,
-    pub publishedDate: String,
-    pub releaseDate: String,
-    pub shortDescription: String,
+    pub last_updated: String,
+    pub published_date: String,
+    pub release_date: String,
+    pub short_description: String,
     pub versions: Vec<VSMarketPlaceExtensionVersion>,
     pub statistics: Vec<VSMarketPlaceExtensionStatistic>,
-    pub deploymentType: u64,
+    pub deployment_type: u64,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceExtensionPublisher {
-    pub publisherId: String,
-    pub publisherName: String,
-    pub displayName: String,
+    pub publisher_id: String,
+    pub publisher_name: String,
+    pub display_name: String,
     pub flags: String,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceExtensionVersion {
     pub version: String,
     pub flags: String,
-    pub lastUpdated: String,
+    pub last_updated: String,
     pub files: Vec<VSMarketPlaceExtensionVersionFile>,
     pub properties: Vec<VSMarketPlaceExtensionVersionProperty>,
-    pub assetUri: String,
-    pub fallbackAssetUri: String,
+    pub asset_uri: String,
+    pub fallback_asset_uri: String,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceExtensionVersionFile {
-    pub assetType: AssetTypeMicrosoftVisualStudio,
+    pub asset_type: AssetTypeMicrosoftVisualStudio,
     pub source: String,
 }
 
@@ -148,28 +146,26 @@ pub enum AssetTypeMicrosoftVisualStudio {
     ServicesVSIXPackage,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceExtensionVersionProperty {
     pub key: String,
     pub value: String,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceExtensionStatistic {
-    pub statisticName: String,
+    pub statistic_name: String,
     pub value: f64,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct VSMarketPlaceQueryResultMetaData {
-    pub metadataType: String,
-    pub metadataItems: Vec<VSMarketPlaceQueryResultMetaDataItem>,
+    pub metadata_type: String,
+    pub metadata_items: Vec<VSMarketPlaceQueryResultMetaDataItem>,
 }
 
-#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct VSMarketPlaceQueryResultMetaDataItem {
     pub name: String,
@@ -178,7 +174,7 @@ pub struct VSMarketPlaceQueryResultMetaDataItem {
 
 impl VSMarketPlaceQueryResultResponse {
     #[allow(dead_code)]
-    pub async fn new(extension: &str) -> Result<Self> {
+    pub async fn get(extension: &str) -> Result<Self> {
         let data = Payload::new(extension);
 
         let mut headers = HeaderMap::new();
@@ -210,9 +206,9 @@ impl VSMarketPlaceQueryResultResponse {
 }
 
 impl VSMarketPlaceExtension {
-    pub async fn new(extension: &str) -> Result<Self> {
+    pub async fn get(extension: &str) -> Result<Self> {
         let query: VSMarketPlaceQueryResultResponse =
-            VSMarketPlaceQueryResultResponse::new(extension).await?;
+            VSMarketPlaceQueryResultResponse::get(extension).await?;
 
         if !query.results.is_empty() && !query.results[0].extensions.is_empty() {
             Ok(query.results[0].extensions[0].clone())
@@ -236,7 +232,7 @@ async fn get_manifest_info(files: &Vec<VSMarketPlaceExtensionVersionFile>) -> Op
     let mut source_box = Box::new(String::from(""));
 
     for f in files {
-        if f.assetType == AssetTypeMicrosoftVisualStudio::CodeManifest {
+        if f.asset_type == AssetTypeMicrosoftVisualStudio::CodeManifest {
             manifest_vec.push(
                 reqwest::get(&f.source)
                     .await
@@ -323,8 +319,8 @@ async fn get_github_license(github_url: String) -> Option<&'static NixLicense> {
 
 impl From<VSMarketPlaceExtension> for NixPackage {
     fn from(ext: VSMarketPlaceExtension) -> Self {
-        let publisher: String = ext.publisher.publisherName.to_string();
-        let extension_name: String = ext.extensionName.to_string();
+        let publisher: String = ext.publisher.publisher_name.to_string();
+        let extension_name: String = ext.extension_name.to_string();
         let version: String = ext.versions[0].version.clone();
         let src = format!("https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/{publisher}/extension/{extName}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", publisher=&publisher, extName=&extension_name, version=&version);
         let src_clone = &src.to_string();
@@ -338,8 +334,8 @@ impl From<VSMarketPlaceExtension> for NixPackage {
             })
         });
 
-        let description = if !&ext.shortDescription.is_empty() {
-            Some(ext.shortDescription.to_string())
+        let description = if !&ext.short_description.is_empty() {
+            Some(ext.short_description.to_string())
         } else {
             None
         };
@@ -348,7 +344,7 @@ impl From<VSMarketPlaceExtension> for NixPackage {
         let mut changelog_box = Box::new(String::from(""));
 
         for f in &ext.versions[0].files.clone() {
-            match f.assetType {
+            match f.asset_type {
                 AssetTypeMicrosoftVisualStudio::ServicesContentChangelog => {
                     *changelog_box = f.source.to_string();
                 }
@@ -356,7 +352,7 @@ impl From<VSMarketPlaceExtension> for NixPackage {
                     *long_description_box = task::block_in_place(move || {
                         Handle::current().block_on(async move {
                             // do something async
-                            get_long_description(&f.source)
+                            get_long_description(f.source.clone())
                                 .await
                                 .expect("Error: unable to get readme of extension")
                         })
@@ -414,10 +410,6 @@ impl From<VSMarketPlaceExtension> for NixPackage {
         };
 
         NixPackage {
-            kind: PackageKind::VscodeExtension {
-                publisher: publisher.to_string(),
-                extension_name: extension_name.to_string(),
-            },
             name: format!("{}.{}", &publisher, &extension_name),
             pname: extension_name,
             src,
@@ -565,19 +557,19 @@ mod tests {
 					"deploymentType": 0
 	})).unwrap();
 
-        let actual: VSMarketPlaceExtension = VSMarketPlaceExtension::new("cometeer.spacemacs")
+        let actual: VSMarketPlaceExtension = VSMarketPlaceExtension::get("cometeer.spacemacs")
             .await
             .unwrap();
         assert_eq!(actual.publisher, expected.publisher);
-        assert_eq!(actual.extensionId, expected.extensionId);
-        assert_eq!(actual.extensionName, expected.extensionName);
-        assert_eq!(actual.displayName, expected.displayName);
+        assert_eq!(actual.extension_id, expected.extension_id);
+        assert_eq!(actual.extension_name, expected.extension_name);
+        assert_eq!(actual.display_name, expected.display_name);
         assert_eq!(actual.flags, expected.flags);
-        assert_eq!(actual.lastUpdated, expected.lastUpdated);
-        assert_eq!(actual.publishedDate, expected.publishedDate);
-        assert_eq!(actual.releaseDate, expected.releaseDate);
-        assert_eq!(actual.shortDescription, expected.shortDescription);
+        assert_eq!(actual.last_updated, expected.last_updated);
+        assert_eq!(actual.published_date, expected.published_date);
+        assert_eq!(actual.release_date, expected.release_date);
+        assert_eq!(actual.short_description, expected.short_description);
         assert_eq!(actual.versions, expected.versions);
-        assert_eq!(actual.deploymentType, expected.deploymentType);
+        assert_eq!(actual.deployment_type, expected.deployment_type);
     }
 }

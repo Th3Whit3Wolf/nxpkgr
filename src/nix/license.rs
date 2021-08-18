@@ -1,10 +1,11 @@
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /*
     Licenses taken from
     https://github.com/NixOS/nixpkgs/blob/master/lib/licenses.nix
 */
 
+#[allow(clippy::upper_case_acronyms)]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub enum NixLicense {
@@ -490,7 +491,7 @@ impl NixLicense {
             _ => None,
         }
     }
-    pub fn to_nix_meta(&self) -> &'static str {
+    pub fn to_nix_meta(self) -> &'static str {
         match self {
             NixLicense::Abstyles => "lib.licenses.abstyles",
             NixLicense::AFL_2_0 => "lib.licenses.afl20",
