@@ -14,13 +14,12 @@ tokio = { version = "1", features = ["full"] }
 
 # Http Client
 reqwest = { version = "0.11.4", default-features = false, features = [ "rustls-tls", "json" ] }
-anyhow = "1.0.42"
 
 # To serialize/deserialize various languages
 toml = "0.5.8"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
-pulldown-cmark = "0.8.0"
+pulldown-cmark = { version = "0.8.0", default-features = false, features = ["simd"] }
 roxmltree = "0.14.1"
 
 # To download file to random temporary path

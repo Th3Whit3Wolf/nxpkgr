@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use anyhow::{anyhow, Result};
+use color_eyre::{
+    eyre::{eyre, Report, WrapErr, Result},
+    Section,
+};
+
 use reqwest::header::{
     HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE, REFERER, USER_AGENT,
 };
@@ -213,7 +217,7 @@ impl VSMarketPlaceExtension {
         if !query.results.is_empty() && !query.results[0].extensions.is_empty() {
             Ok(query.results[0].extensions[0].clone())
         } else {
-            Err(anyhow!("No results in VS Marektplace for extension"))
+            Err(eyre!("No results in VS Marektplace for extension"))
         }
     }
 }

@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use anyhow::Result;
+use color_eyre::{
+    eyre::{eyre, Report, WrapErr, Result},
+    Section,
+};
 
 use std::collections::HashMap;
 

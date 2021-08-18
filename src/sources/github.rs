@@ -1,4 +1,8 @@
-use anyhow::Result;
+use color_eyre::{
+    eyre::{eyre, Report, WrapErr, Result},
+    Section,
+};
+
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
 use serde::{Deserialize, Serialize};
 use tokio::{runtime::Handle, task};
