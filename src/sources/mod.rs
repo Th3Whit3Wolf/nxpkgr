@@ -2,9 +2,13 @@ pub mod github;
 pub mod openvsx;
 pub mod vscodemarketplace;
 
-use anyhow::Result;
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use tempfile::Builder;
+
+use color_eyre::{
+    eyre::{eyre, Report, WrapErr, Result},
+    Section,
+};
 
 use std::{fs::File, io::copy, process::Command};
 
@@ -50,25 +54,71 @@ pub async fn get_hash(url: &str) -> Result<String> {
     Ok(hash)
 }
 
-pub async fn get_long_description(url: String) -> Result<String> {
-    let md = reqwest::get(url).await?.text().await?;
-    let mut in_first_header = false;
-    let mut long_description: Box<String> = Box::new(String::from(""));
-    Parser::new_ext(&md, Options::all()).map(|event| match event {
-        Event::Start(tag) => {
-            if let Tag::Heading(num) = tag {
-                if num < 4 {
-                    in_first_header = true
-                }
-            }
-        }
-        Event::Text(text) => {
-            if in_first_header && *long_description != String::from("") {
-                *long_description = text.into_string();
-            }
-        }
-        _ => (),
-    });
+#[derive(PartialEq)]
+enum ProgressLongDesc {
+    LookingForMainHeader,
+    FoundMainHeader,
+    ReadingText,
+    Done
+}
 
-    Ok(*long_description)
+pub async fn get_long_description(url: String) -> Result<String, Report> {
+    let resp = reqwest::get(url).await?;
+
+    let status = resp.status();
+
+    if status.is_success() {
+        let markdown = resp.text().await?;
+        let mut long_description = String::new();
+        let mut progress = ProgressLongDesc::LookingForMainHeader;
+        let parser = Parser::new_ext(&markdown, Options::empty());
+        
+        for event in parser {
+            match event {
+                Event::Start(inner) => {
+                    match inner {
+                        Tag::Heading(_n) => {
+                            if progress == ProgressLongDesc::LookingForMainHeader {
+                                progress = ProgressLongDesc::FoundMainHeader;
+                            } else if progress == ProgressLongDesc::ReadingText {
+                                progress = ProgressLongDesc::Done;
+                            }
+                        }
+                        Tag::Paragraph => {
+                            if progress == ProgressLongDesc::FoundMainHeader {
+                                progress = ProgressLongDesc::ReadingText; 
+                            } 
+                        },
+                        _ => ()
+                    }
+                }
+                Event::Text(cow_str) => {
+                    if progress == ProgressLongDesc::ReadingText {
+                        long_description.push_str(cow_str.into_string().as_str())
+                    }
+                },
+                Event::SoftBreak => {
+                    if progress == ProgressLongDesc::ReadingText {
+                        long_description.push('\n')
+                    }
+                },
+                Event::End(inner) => {
+                    if inner == Tag::Paragraph && progress == ProgressLongDesc::ReadingText {
+                        progress = ProgressLongDesc::Done;
+                    }
+                }
+                _ => ()
+            }
+
+            if progress == ProgressLongDesc::Done {
+                break
+            }
+        };
+
+        Ok(long_description)
+    } else if let Some(reason) = status.canonical_reason() {
+        Err(eyre!("Recieved {}, while attempting to get meta.longDescription.", reason))
+    } else {
+        Err(eyre!("{}",  status.to_string()))
+    }
 }

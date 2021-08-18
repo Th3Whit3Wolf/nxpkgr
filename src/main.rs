@@ -28,10 +28,6 @@ async fn main() -> Result<(), Report> {
             color_eyre::ErrorKind::Recoverable(_) => true,
         })
         .install()?;
-        /*
-        
-        Long description for vscode & openvsx needs to be fixed
-        */
 
     let manifest = package::TomlManifest::from_file(Path::new(PATH_TO_EXAMPLE_TOML).to_path_buf())?;
     let openvsx_packages = manifest.get_openvsx_nixpkgs().await?;
