@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use color_eyre::{
-    eyre::{eyre, Report, WrapErr, Result},
+    eyre::{eyre, Report, Result, WrapErr},
     Section,
 };
 
