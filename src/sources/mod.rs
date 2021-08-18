@@ -6,7 +6,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag};
 use tempfile::Builder;
 
 use color_eyre::{
-    eyre::{eyre, Report, WrapErr, Result},
+    eyre::{eyre, Report, Result, WrapErr},
     Section,
 };
 
@@ -59,7 +59,7 @@ enum ProgressLongDesc {
     LookingForMainHeader,
     FoundMainHeader,
     ReadingText,
-    Done
+    Done,
 }
 
 pub async fn get_long_description(url: String) -> Result<String, Report> {
@@ -72,53 +72,54 @@ pub async fn get_long_description(url: String) -> Result<String, Report> {
         let mut long_description = String::new();
         let mut progress = ProgressLongDesc::LookingForMainHeader;
         let parser = Parser::new_ext(&markdown, Options::empty());
-        
+
         for event in parser {
             match event {
-                Event::Start(inner) => {
-                    match inner {
-                        Tag::Heading(_n) => {
-                            if progress == ProgressLongDesc::LookingForMainHeader {
-                                progress = ProgressLongDesc::FoundMainHeader;
-                            } else if progress == ProgressLongDesc::ReadingText {
-                                progress = ProgressLongDesc::Done;
-                            }
+                Event::Start(inner) => match inner {
+                    Tag::Heading(_n) => {
+                        if progress == ProgressLongDesc::LookingForMainHeader {
+                            progress = ProgressLongDesc::FoundMainHeader;
+                        } else if progress == ProgressLongDesc::ReadingText {
+                            progress = ProgressLongDesc::Done;
                         }
-                        Tag::Paragraph => {
-                            if progress == ProgressLongDesc::FoundMainHeader {
-                                progress = ProgressLongDesc::ReadingText; 
-                            } 
-                        },
-                        _ => ()
                     }
-                }
+                    Tag::Paragraph => {
+                        if progress == ProgressLongDesc::FoundMainHeader {
+                            progress = ProgressLongDesc::ReadingText;
+                        }
+                    }
+                    _ => (),
+                },
                 Event::Text(cow_str) => {
                     if progress == ProgressLongDesc::ReadingText {
                         long_description.push_str(cow_str.into_string().as_str())
                     }
-                },
+                }
                 Event::SoftBreak => {
                     if progress == ProgressLongDesc::ReadingText {
                         long_description.push('\n')
                     }
-                },
+                }
                 Event::End(inner) => {
                     if inner == Tag::Paragraph && progress == ProgressLongDesc::ReadingText {
                         progress = ProgressLongDesc::Done;
                     }
                 }
-                _ => ()
+                _ => (),
             }
 
             if progress == ProgressLongDesc::Done {
-                break
+                break;
             }
-        };
+        }
 
         Ok(long_description)
     } else if let Some(reason) = status.canonical_reason() {
-        Err(eyre!("Recieved {}, while attempting to get meta.longDescription.", reason))
+        Err(eyre!(
+            "Recieved {}, while attempting to get meta.longDescription.",
+            reason
+        ))
     } else {
-        Err(eyre!("{}",  status.to_string()))
+        Err(eyre!("{}", status.to_string()))
     }
 }
