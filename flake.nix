@@ -44,7 +44,7 @@
 
 if [ ! -f "''${DEVSHELL_ROOT}/.vscode/settings.json" ]; then
   if [ ! -d "''${DEVSHELL_ROOT}/.vscode" ]; then
-    mkdir "/.vscode"
+    mkdir "''${DEVSHELL_ROOT}/.vscode"
   fi
   
 cat <<EOF > $DEVSHELL_ROOT/.vscode/settings.json
